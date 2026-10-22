@@ -56,6 +56,7 @@ struct ContentView: View {
                     NavigationLink("Бабочка — мягкая практика") { ButterflyLessonView() }
                     NavigationLink("Камера · анализ позы (прототип)") { CameraCoachView() }
                     NavigationLink("Записать тренировку") { TrainingEntryView(journal: journal) }
+                    NavigationLink("Звуковая среда") { SoundscapeSettingsView() }
                     Text("Новые практики появятся в следующих версиях.")
                         .foregroundStyle(.secondary)
                 }

@@ -11,6 +11,7 @@ struct ContentView: View {
     @State private var store = WheelStore()
     @State private var selectedTab = 0
     @State private var journal = TrainingJournal()
+    @State private var profile = ProfileStore()
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -69,6 +70,11 @@ struct ContentView: View {
             }
             .tabItem { Label("Прогресс", systemImage: "chart.line.uptrend.xyaxis") }
             .tag(2)
+            NavigationStack {
+                ProfileView(store: profile)
+            }
+            .tabItem { Label("Профиль", systemImage: "person.crop.circle") }
+            .tag(3)
         }
     }
 }

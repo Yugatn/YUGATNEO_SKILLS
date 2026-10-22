@@ -17,8 +17,8 @@ struct WheelChart: View {
                     let angle = Double(index) * .pi * 2 / Double(count) - .pi / 2
                     Path { path in
                         path.move(to: center)
-                        path.addLine(to: CGPoint(x: center.x + radius * cos(angle),
-                                                 y: center.y + radius * sin(angle)))
+                        path.addLine(to: CGPoint(x: center.x + radius * CGFloat(cos(angle)),
+                                                 y: center.y + radius * CGFloat(sin(angle))))
                     }
                     .stroke(.gray.opacity(0.3), lineWidth: 1)
                 }
@@ -46,8 +46,8 @@ private struct WheelPolygon: Shape {
         for (index, value) in values.enumerated() {
             let angle = Double(index) * 2 * .pi / Double(values.count) - .pi / 2
             let distance = radius * CGFloat(min(10, max(0, value)) / 10)
-            let point = CGPoint(x: center.x + distance * cos(angle),
-                                y: center.y + distance * sin(angle))
+            let point = CGPoint(x: center.x + distance * CGFloat(cos(angle)),
+                                y: center.y + distance * CGFloat(sin(angle)))
             if index == 0 { path.move(to: point) } else { path.addLine(to: point) }
         }
         if values.count > 2 { path.closeSubpath() }

@@ -1,0 +1,10 @@
+# macOS and Xcode
+.DS_Store
+*.xcuserstate
+xcuserdata/
+DerivedData/
+.build/
+.env
+.env.*
+!.env.example
+*.sqlite3

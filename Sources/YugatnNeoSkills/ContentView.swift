@@ -10,6 +10,7 @@ struct WheelRay: Identifiable, Codable {
 struct ContentView: View {
     @State private var store = WheelStore()
     @State private var selectedTab = 0
+    @State private var journal = TrainingJournal()
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -53,6 +54,7 @@ struct ContentView: View {
                 List {
                     NavigationLink("Бабочка — мягкая практика") { ButterflyLessonView() }
                     NavigationLink("Камера · анализ позы (прототип)") { CameraCoachView() }
+                    NavigationLink("Записать тренировку") { TrainingEntryView(journal: journal) }
                     Text("Новые практики появятся в следующих версиях.")
                         .foregroundStyle(.secondary)
                 }
@@ -60,6 +62,11 @@ struct ContentView: View {
             }
             .tabItem { Label("Практики", systemImage: "figure.cooldown") }
             .tag(1)
+            NavigationStack {
+                TrainingJournalView(journal: journal)
+            }
+            .tabItem { Label("Прогресс", systemImage: "chart.line.uptrend.xyaxis") }
+            .tag(2)
         }
     }
 }

@@ -7,25 +7,6 @@ struct WheelRay: Identifiable, Codable {
     var desired: Int = 0
 }
 
-@MainActor
-@Observable
-final class WheelStore {
-    var rays: [WheelRay] = Array(repeating: 0, count: 12).map { _ in WheelRay() }
-    var template: String = "Свободное"
-
-    static let matrix = [
-        "Подвижность", "Сила", "Выносливость", "Равновесие",
-        "Координация", "Восстановление", "Энергия", "Комфорт движений",
-        "Ловкость", "Дыхательный комфорт", "Регулярность", "Техника"
-    ]
-
-    func addRay() { rays.append(WheelRay()) }
-    func removeRay(at index: Int) {
-        guard rays.count > 1, rays.indices.contains(index) else { return }
-        rays.remove(at: index)
-    }
-}
-
 struct ContentView: View {
     @State private var store = WheelStore()
     @State private var selectedTab = 0
@@ -38,13 +19,16 @@ struct ContentView: View {
                         Text("12 лучей по умолчанию. Измени количество и выбери свои характеристики.")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
+                        WheelChart(rays: store.rays)
                         Picker("Шаблон", selection: $store.template) {
                             ForEach(["Свободное", "Подростки", "Старшее поколение"], id: \.self) { Text($0) }
                         }
+                        .onChange(of: store.template) { _, _ in store.save() }
                     }
                     ForEach(store.rays.indices, id: \.self) { index in
                         NavigationLink {
                             RayEditor(ray: $store.rays[index])
+                                .onDisappear { store.save() }
                         } label: {
                             HStack {
                                 Text("\(index + 1).")

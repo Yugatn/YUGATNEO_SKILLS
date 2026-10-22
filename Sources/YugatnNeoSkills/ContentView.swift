@@ -52,6 +52,7 @@ struct ContentView: View {
             NavigationStack {
                 List {
                     NavigationLink("Бабочка — мягкая практика") { ButterflyLessonView() }
+                    NavigationLink("Камера · анализ позы (прототип)") { CameraCoachView() }
                     Text("Новые практики появятся в следующих версиях.")
                         .foregroundStyle(.secondary)
                 }

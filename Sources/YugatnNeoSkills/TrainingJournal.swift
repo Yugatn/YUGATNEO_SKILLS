@@ -20,11 +20,15 @@ struct TrainingRecord: Identifiable, Codable {
 final class TrainingJournal {
     private(set) var sessions: [TrainingRecord] = []
     private let key = "neo.skills.training.v1"
+    let rewards = PracticeRewards()
 
     init() { load() }
 
     func append(_ record: TrainingRecord) {
         sessions.insert(record, at: 0)
+        rewards.grant(sessionID: record.id, date: record.date,
+                      completed: record.completedSteps == record.totalSteps,
+                      reflected: !record.note.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         save()
     }
 
@@ -56,6 +60,8 @@ struct TrainingJournalView: View {
             Section("Результаты") {
                 LabeledContent("Тренировок завершено", value: "\(journal.completedCount)")
                 LabeledContent("Всего минут", value: "\(journal.totalMinutes)")
+                LabeledContent("Очки практики", value: "\(journal.rewards.totalXP) XP")
+                LabeledContent("Дней с практикой", value: "\(journal.rewards.activeDays)")
             }
             Section("Журнал") {
                 if journal.sessions.isEmpty {

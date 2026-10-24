@@ -54,7 +54,7 @@ struct ContentView: View {
             NavigationStack {
                 List {
                     NavigationLink("Выбрать навык и программу") { SkillRecommendationsView(rays: store.rays) }
-                    NavigationLink("Бабочка — мягкая практика") { ButterflyLessonView() }
+                    NavigationLink("Бабочка — мягкая практика") { ButterflyLessonView(journal: journal) }
                     NavigationLink("Камера · анализ позы (прототип)") { CameraCoachView() }
                     NavigationLink("Записать тренировку") { TrainingEntryView(journal: journal) }
                     NavigationLink("Звуковая среда") { SoundscapeSettingsView() }

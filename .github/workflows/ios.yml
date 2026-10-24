@@ -15,3 +15,8 @@ jobs:
       - name: Build for simulator without signing
         run: |
           xcodebuild -project YugatnNeoSkills.xcodeproj -scheme YugatnNeoSkills -sdk iphonesimulator -configuration Debug CODE_SIGNING_ALLOWED=NO build
+      - name: Run wheel unit tests
+        run: |
+          xcodebuild -project YugatnNeoSkills.xcodeproj -scheme YugatnNeoSkills \
+            -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
+            -configuration Debug CODE_SIGNING_ALLOWED=NO test

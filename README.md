@@ -3,13 +3,15 @@
 Открытое iPhone-приложение для освоения физических навыков: адаптивное колесо физического состояния → цель → тренировка → дневник.
 
 ## Текущий статус
-Первый **исходный SwiftUI-каркас**, не выпущенное приложение. Содержит модель редактируемого колеса (12 пустых лучей по умолчанию), каталог физических характеристик, экран изменения оценок и пример первого занятия. Сборка на macOS/Xcode пока не проверена.
+**Разрабатываемый SwiftUI-прототип**, не выпущенное приложение. Есть редактируемое колесо (12 пустых лучей по умолчанию), график, локальная история снимков, профиль, журнал занятий и урок «Бабочка» с таймером, паузой и добровольным сохранением результата. XcodeGen-проект, XCTest и GitHub Actions добавлены, но успешная сборка на macOS/Xcode пока не подтверждена.
 
 ## Запуск
-1. Mac с Xcode и iOS SDK.
-2. Создать iOS App с именем `YugatnNeoSkills`, SwiftUI lifecycle, Swift.
-3. Добавить файлы из `Sources/YugatnNeoSkills/` в target приложения (включая `YugatnNeoSkillsApp.swift`).
-4. Запустить в iOS Simulator или на iPhone.
+1. Mac с Xcode и установленным iOS Simulator.
+2. Установить XcodeGen: `brew install xcodegen`.
+3. В корне репозитория выполнить `xcodegen generate`.
+4. Открыть `YugatnNeoSkills.xcodeproj` в Xcode и запустить схему `YugatnNeoSkills` на симуляторе.
+5. Для проверки в Terminal: `xcodebuild -project YugatnNeoSkills.xcodeproj -scheme YugatnNeoSkills -sdk iphonesimulator -configuration Debug CODE_SIGNING_ALLOWED=NO build`.
+6. Для unit-тестов выбрать доступный симулятор и выполнить `xcodebuild -project YugatnNeoSkills.xcodeproj -scheme YugatnNeoSkills -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' CODE_SIGNING_ALLOWED=NO test` (при необходимости заменить имя симулятора).
 
 ## Принципы
 - 12 лучей — отправная точка, не предел; направление выбирает сам человек из матрицы или задаёт вручную.
@@ -19,3 +21,11 @@
 - Базовые функции бесплатны. Донаты добровольные.
 
 [Дорожная карта в Notion](https://app.notion.com/p/401d13238599815bba95d33fccc79078)
+
+## Данные и синхронизация
+
+Колесо, история его снимков (до 100), профиль и журнал сохраняются локально. **Синхронизации между устройствами сейчас нет.** Не удаляй приложение, не сохранив данные: экспорт/импорт и резервные копии находятся в плане. Никаких скрытых загрузок пользовательского профиля в облако.
+
+## Контроль качества
+
+Конфигурация XcodeGen: `project.yml`; CI: `.github/workflows/ios.yml`; тесты: `Tests/YugatnNeoSkillsTests/WheelStoreTests.swift`. Наличие этих файлов не доказывает успешную сборку. Проверь GitHub Actions и лог `xcodebuild` перед выпуском.

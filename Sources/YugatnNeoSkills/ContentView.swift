@@ -45,6 +45,7 @@ struct ContentView: View {
                         for index in offsets.sorted(by: >) { store.removeRay(at: index) }
                     }
                     Button("Добавить луч", systemImage: "plus") { store.addRay() }
+                    NavigationLink("История колеса") { WheelHistoryView(store: store) }
                 }
                 .navigationTitle("Моё колесо")
             }

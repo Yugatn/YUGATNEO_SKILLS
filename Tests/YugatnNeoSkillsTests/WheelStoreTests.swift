@@ -1,8 +1,8 @@
 import XCTest
 @testable import YugatnNeoSkills
 
-@MainActor
 final class WheelStoreTests: XCTestCase {
+    @MainActor
     func testDefaultWheelAndSnapshotRestore() {
         let suite = "org.yugatn.skills.tests.\(UUID().uuidString)"
         guard let defaults = UserDefaults(suiteName: suite) else {
@@ -36,6 +36,7 @@ final class WheelStoreTests: XCTestCase {
         XCTAssertEqual(reloaded.rays[0].desired, 10)
     }
 
+    @MainActor
     func testCannotDeleteLastRay() {
         let suite = "org.yugatn.skills.tests.\(UUID().uuidString)"
         guard let defaults = UserDefaults(suiteName: suite) else {

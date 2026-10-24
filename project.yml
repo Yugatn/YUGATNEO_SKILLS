@@ -34,3 +34,13 @@ targets:
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES
+
+schemes:
+  YugatnNeoSkills:
+    build:
+      targets:
+        YugatnNeoSkills: all
+        YugatnNeoSkillsTests: [test]
+    test:
+      targets:
+        - YugatnNeoSkillsTests

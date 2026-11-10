@@ -6,6 +6,7 @@ struct DevelopmentLessonView: View {
     @State private var scenarioIndex = 0
     @State private var selectedOptionID: String?
     @State private var showReflection = false
+    @State private var learningPath = DevelopmentLearningPath()
 
     private let engine = DevelopmentSkillEngine()
 
@@ -27,6 +28,22 @@ struct DevelopmentLessonView: View {
                     Label("Проходите это занятие вместе со взрослым.", systemImage: "person.2")
                         .foregroundStyle(.secondary)
                 }
+            }
+            Section("Моя учебная траектория") {
+                Text("Пройдено с обсуждением: \\(learningPath.completed.count) из \\(DevelopmentScenario.examples.count) ситуаций")
+                Text("Рекомендация основана на разнообразии тем, а не на оценке личности.")
+                    .font(.footnote).foregroundStyle(.secondary)
+                if let next = learningPath.suggestedIndex(in: DevelopmentScenario.examples, excluding: scenarioIndex) {
+                    Button("Попробовать: \\(DevelopmentScenario.examples[next].title)") {
+                        scenarioIndex = next
+                        reset()
+                    }
+                }
+                Button("Очистить прогресс этой сессии", role: .destructive) {
+                    learningPath.clear()
+                    reset()
+                }
+                .disabled(learningPath.completed.isEmpty)
             }
             Section("Ситуация") {
                 Text(scenario.title).font(.headline)
@@ -80,7 +97,14 @@ struct DevelopmentLessonView: View {
                     }
                     Text("Обсудите, как можно исправить ошибку и применить урок в другой ситуации.")
                         .foregroundStyle(.secondary)
-                    Button("Начать заново") { reset() }
+                    Button("Завершить обсуждение и предложить следующую ситуацию") {
+                        learningPath.complete(scenarioTitle: scenario.title, focus: scenario.focus)
+                        if let next = learningPath.suggestedIndex(in: DevelopmentScenario.examples, excluding: scenarioIndex) {
+                            scenarioIndex = next
+                        }
+                        reset()
+                    }
+                    Button("Начать заново без отметки") { reset() }
                 }
             }
             Section {
@@ -108,12 +132,14 @@ struct DevelopmentScenario {
 
     let title: String
     let story: String
+    let focus: DevelopmentLearningFocus
     let options: [Choice]
 
     static let examples: [DevelopmentScenario] = [
         DevelopmentScenario(
             title: "Общая игрушка",
             story: "Двое детей хотят играть одной игрушкой. Как поступить, чтобы услышать обоих?",
+            focus: .cooperation,
             options: [
                 choice("ask", "Предложить очередь и спросить согласие", "Можно договориться, но другой человек вправе не согласиться.", consent: false),
                 choice("take", "Забрать силой", "Это нарушает границы другого. Нужна безопасная альтернатива.", rights: true),
@@ -123,6 +149,7 @@ struct DevelopmentScenario {
         DevelopmentScenario(
             title: "Чужая фотография",
             story: "Друг просит переслать фотографию другого человека, который не давал согласия.",
+            focus: .consent,
             options: [
                 choice("forward", "Переслать без разрешения", "Нет согласия человека, чья фотография распространяется.", consent: true),
                 choice("decline", "Отказаться и объяснить почему", "Отказ защищает чужую приватность."),
@@ -132,6 +159,7 @@ struct DevelopmentScenario {
         DevelopmentScenario(
             title: "Ошибка в совместном деле",
             story: "Ты случайно испортил часть общего проекта и боишься признаться.",
+            focus: .repair,
             options: [
                 choice("hide", "Обвинить другого", "Ложное обвинение нарушает права другого участника.", rights: true),
                 choice("repair", "Признать ошибку и предложить исправление", "Это даёт шанс восстановить доверие и результат."),

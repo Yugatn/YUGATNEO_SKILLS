@@ -1,0 +1,90 @@
+// Start HTTP server from README. Install Playwright separately if unavailable.
+// NODE_PATH=/path/to/node_modules CHROMIUM_PATH=/usr/bin/chromium node tests/browser.cjs
+// Optional BASE_URL, SCREENSHOT_DIR; screenshots are temporary test artifacts.
+const {chromium}=require('playwright');
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+(async()=>{
+ const browser=await chromium.launch({executablePath:process.env.CHROMIUM_PATH||undefined,headless:true,args:['--no-sandbox']});
+ const context=await browser.newContext({viewport:{width:1365,height:960}});
+ const page=await context.newPage();const errors=[],external=[];
+ page.on('pageerror',e=>errors.push(String(e)));
+ const base=process.env.BASE_URL||'http://127.0.0.1:8080';
+ page.on('request',r=>{if(!r.url().startsWith(base))external.push(r.url());});
+ const ready=async()=>{await page.waitForSelector('#workspace:not([hidden])');};
+ await page.goto(base);await ready();
+ assert.equal(await page.locator('.skill').count(),60);
+ assert.equal(await page.locator('#age').inputValue(),'12-17');
+ await page.getByRole('button',{name:'Начать упражнение',exact:true}).click();
+ await page.getByRole('button',{name:'Выполнено →',exact:true}).click();
+ await page.locator('#age').selectOption('18+');
+ assert.ok(await page.getByRole('button',{name:'Начать упражнение',exact:true}).isVisible());
+ await page.locator('#age').selectOption('12-17');
+ assert.ok((await page.locator('.practice').innerText()).includes('Шаг 2 из 4'));
+ for(let i=0;i<3;i++)await page.getByRole('button',{name:'Выполнено →',exact:true}).click();
+ await page.locator('textarea').first().fill('PRIVATE_TEST_ANSWER');
+ assert.ok(await page.getByRole('button',{name:'Отметить «закреплено»',exact:true}).isDisabled());
+ await page.locator('.practice input[type=checkbox]').check();
+ assert.equal(await page.locator('textarea').first().inputValue(),'PRIVATE_TEST_ANSWER');
+ await page.getByRole('button',{name:'Отметить «закреплено»',exact:true}).click();
+ assert.ok((await page.locator('.badges').innerText()).includes('Материал: на проверке'));
+ assert.ok((await page.locator('.badges').innerText()).includes('Прогресс: закреплено'));
+ assert.equal(await page.evaluate(()=>localStorage.length),0);
+ await page.reload();await ready();
+ assert.ok(await page.getByRole('button',{name:'Начать упражнение',exact:true}).isVisible());
+ await page.locator('#persist').check();
+ await page.getByRole('button',{name:'Начать упражнение',exact:true}).click();
+ for(let i=0;i<4;i++)await page.getByRole('button',{name:'Выполнено →',exact:true}).click();
+ await page.locator('textarea').first().fill('PRIVATE_TEST_ANSWER');
+ await page.locator('.practice input[type=checkbox]').check();
+ await page.getByRole('button',{name:'Отметить «закреплено»',exact:true}).click();
+ assert.ok(!(await page.evaluate(()=>JSON.stringify(localStorage))).includes('PRIVATE_TEST_ANSWER'));
+ await page.reload();await ready();
+ assert.ok((await page.locator('.badges').innerText()).includes('Прогресс: закреплено'));
+ assert.equal(await page.locator('textarea').first().inputValue(),'');
+
+ // Backup: preview/cancel, protected conflicts, explicit replacement, no private answers.
+ const downloadPromise=page.waitForEvent('download');await page.locator('#export').click();
+ const download=await downloadPromise;const backup=fs.readFileSync(await download.path(),'utf8');
+ assert.ok(!backup.includes('PRIVATE_TEST_ANSWER'));assert.ok(!backup.includes('under_review'));
+ const payload=JSON.parse(backup);const importedKey=Object.keys(payload.records)[0];
+ payload.records[importedKey]={status:'not_started',step:0,completed:[],criterionObserved:false};
+ const upload=()=>page.locator('#import-file').setInputFiles({name:'backup.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(payload))});
+ await upload();await page.waitForSelector('#import-preview:not([hidden])');
+ assert.ok((await page.locator('.badges').innerText()).includes('закреплено'));
+ await page.locator('#cancel-import').click();assert.ok((await page.locator('.badges').innerText()).includes('закреплено'));
+ await upload();await page.waitForSelector('#import-preview:not([hidden])');await page.locator('#apply-import').click();assert.ok((await page.locator('.badges').innerText()).includes('закреплено'));
+ await upload();await page.waitForSelector('#import-preview:not([hidden])');await page.locator('#replace-conflicts').check();
+ page.once('dialog',d=>d.accept());await page.locator('#apply-import').click();assert.ok(await page.getByRole('button',{name:'Начать упражнение',exact:true}).isVisible());
+ await page.locator('#import-file').setInputFiles({name:'broken.json',mimeType:'application/json',buffer:Buffer.from('{broken')});
+ await page.waitForFunction(()=>document.getElementById('backup-status').textContent.includes('корректным JSON'));
+ // Two tabs: pause instead of overwriting; a deletion clears stale progress and answers.
+ const sibling=await context.newPage();await sibling.goto(base);await sibling.waitForSelector('#workspace:not([hidden])');
+ await page.getByRole('button',{name:'Начать упражнение',exact:true}).click();
+ await sibling.waitForFunction(()=>document.getElementById('storage-status').textContent.includes('другой вкладке'));
+ assert.equal(await sibling.locator('#persist').isChecked(),false);
+ await sibling.getByRole('button',{name:'Начать упражнение',exact:true}).click();
+ await sibling.getByRole('button',{name:'Выполнено →',exact:true}).click();
+ assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('yugatn.soft-skills.progress.v1')).records[Object.keys(JSON.parse(localStorage.getItem('yugatn.soft-skills.progress.v1')).records)[0]].step),0);
+ page.once('dialog',d=>d.accept());await page.locator('#clear').click();
+ await sibling.waitForFunction(()=>document.getElementById('storage-status').textContent.includes('тоже очищена'));
+ assert.ok(await sibling.getByRole('button',{name:'Начать упражнение',exact:true}).isVisible());assert.equal(await sibling.locator('#persist').isChecked(),false);await sibling.close();
+ const other=await browser.newContext();const otherPage=await other.newPage();await otherPage.goto(base);await otherPage.waitForSelector('#workspace:not([hidden])');assert.ok(await otherPage.getByRole('button',{name:'Начать упражнение',exact:true}).isVisible());await other.close();
+ await page.evaluate(()=>localStorage.setItem('unrelated-app','keep'));
+ page.on('dialog',d=>d.accept());
+ await page.locator('#clear').click();assert.equal(await page.evaluate(()=>localStorage.getItem('yugatn.soft-skills.progress.v1')),null);assert.equal(await page.evaluate(()=>localStorage.getItem('unrelated-app')),'keep');
+ await page.locator('#availability').selectOption('outline');assert.equal(await page.locator('.skill').count(),35);assert.equal(await page.getByRole('button',{name:'Начать упражнение',exact:true}).count(),0);
+ await page.locator('#search').fill('нет_такого_навыка');assert.equal(await page.locator('.skill').count(),0);assert.ok((await page.locator('#lesson').innerText()).includes('Выберите'));
+ await page.locator('#search').fill('');await page.locator('#availability').selectOption('exercise');
+ const shots=process.env.SCREENSHOT_DIR;
+ if(shots){fs.mkdirSync(shots,{recursive:true});await page.screenshot({path:shots+'/desktop.png',fullPage:true});}
+ await page.setViewportSize({width:390,height:844});
+ assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+ await page.locator('#lesson').scrollIntoViewIfNeeded();if(shots)await page.screenshot({path:shots+'/mobile.png',fullPage:true});
+ await page.evaluate(()=>localStorage.setItem('yugatn.soft-skills.progress.v1','broken'));await page.reload();await ready();assert.ok((await page.locator('#storage-status').innerText()).includes('повреждён'));
+ const blocked=await browser.newContext();await blocked.addInitScript(()=>{Object.defineProperty(Storage.prototype,'getItem',{value(){throw new Error('blocked');}});Object.defineProperty(Storage.prototype,'setItem',{value(){throw new Error('blocked');}});});const bpage=await blocked.newPage();await bpage.goto(base);await bpage.waitForSelector('#workspace:not([hidden])');await bpage.locator('#persist').click();assert.equal(await bpage.locator('#persist').isChecked(),false);assert.ok((await bpage.locator('#storage-status').innerText()).includes('Не удалось сохранить'));await bpage.getByRole('button',{name:'Начать упражнение',exact:true}).click();await blocked.close();
+ const failed=await browser.newContext();const fpage=await failed.newPage();await fpage.route('**/data/skills.json',r=>r.fulfill({status:500,body:'error'}));await fpage.goto(base);await fpage.waitForSelector('#error:not([hidden])');await failed.close();
+ assert.deepEqual(errors,[]);assert.deepEqual(external,[]);
+ console.log('PASS: full flow, age isolation, review independence, opt-in persistence, no answer storage, reload, separate browser profiles, scoped deletion, outlines, empty search, mobile overflow, corrupt/blocked storage, failed catalogue; zero page errors/external requests.');
+ await browser.close();
+})().catch(e=>{console.error(e);process.exit(1);});

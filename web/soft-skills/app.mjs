@@ -1,12 +1,13 @@
+import {exportBackup,inspectBackup,mergeBackup,MAX_BACKUP_BYTES} from './backup.mjs';
 import {PROGRESS,REVIEW,STORAGE_KEY,progressKey,emptyProgress,transition,loadProgress,saveProgress,validateCatalogue} from './model.mjs';
 const $=id=>document.getElementById(id);
 const node=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n;};
 const button=(text,fn,cls='secondary')=>{const b=node('button',text,cls);b.type='button';b.onclick=fn;return b;};
-let catalogue,selected,records={},persist=false;const answers=new Map();
+let catalogue,selected,records={},persist=false,lastSaved=null,pendingImport=null,importGeneration=0;const answers=new Map();
 const age=()=>$('age').value;
 const key=()=>progressKey(selected,age());
 const progress=()=>records[key()]||emptyProgress();
-function save(){if(!persist)return;try{saveProgress(localStorage,records);$('storage-status').textContent='Шаги и статусы сохранены в браузере. Ответы не записаны.';}catch{persist=false;$('persist').checked=false;$('storage-status').textContent='Не удалось сохранить. Прогресс остаётся только в этой вкладке.';}}
+function save(){if(!persist)return;try{if(localStorage.getItem(STORAGE_KEY)!==lastSaved){pauseSaving();return;}saveProgress(localStorage,records);lastSaved=localStorage.getItem(STORAGE_KEY);$('storage-status').textContent='Шаги и статусы сохранены в браузере. Ответы не записаны.';}catch{persist=false;$('persist').checked=false;$('storage-status').textContent='Не удалось сохранить. Прогресс остаётся только в этой вкладке.';}}
 function act(type,value){records[key()]=transition(selected,progress(),{type,value});save();renderList();renderLesson();}
 function filtered(){return catalogue.skills.filter(s=>($('block').value==='all'||s.block===$('block').value)&&($('availability').value==='all'||s.availability===$('availability').value)&&`${s.id} ${s.title}`.toLocaleLowerCase('ru').includes($('search').value.trim().toLocaleLowerCase('ru')));}
 function renderList(){const list=$('skills');list.replaceChildren();const items=filtered();$('count').textContent=items.length;if(!items.length)list.append(node('p','Ничего не найдено. Попробуйте другой запрос.'));
@@ -29,12 +30,48 @@ function renderLesson(){const area=$('lesson');area.replaceChildren();if(!select
  const original=node('details',undefined,'source');original.append(node('summary','Дословная карточка источника'),node('pre',selected.source.excerpt));area.append(original);
 }
 function refresh(){const items=filtered();if(!items.some(s=>s.id===selected?.id))selected=items[0];renderList();renderLesson();}
-$('persist').onchange=()=>{persist=$('persist').checked;if(persist)save();else{try{localStorage.removeItem(STORAGE_KEY);$('storage-status').textContent='Запись в браузере удалена. Текущий прогресс остался только в этой вкладке.';}catch{$('storage-status').textContent='Не удалось удалить запись браузера. Удалите данные сайта в настройках браузера.';}}};
-$('clear').onclick=()=>{if(!confirm('Удалить все шаги, статусы и ответы тренажёра на этом устройстве?'))return;records={};answers.clear();persist=false;$('persist').checked=false;try{localStorage.removeItem(STORAGE_KEY);$('storage-status').textContent='Прогресс тренажёра удалён.';}catch{$('storage-status').textContent='Состояние вкладки очищено. Запись на диске удалить не удалось — очистите данные сайта в браузере.';}renderList();renderLesson();};
+$('persist').onchange=()=>{persist=$('persist').checked;if(persist){try{const latest=localStorage.getItem(STORAGE_KEY);if(latest!==lastSaved&&!confirm('Сохранённые данные изменились в другой вкладке. Заменить их прогрессом этой вкладки?')){persist=false;$('persist').checked=false;return;}lastSaved=latest;}catch{}save();}else{try{localStorage.removeItem(STORAGE_KEY);lastSaved=null;$('storage-status').textContent='Запись в браузере удалена. Текущий прогресс остался только в этой вкладке.';}catch{$('storage-status').textContent='Не удалось удалить запись браузера. Удалите данные сайта в настройках браузера.';}}};
+$('clear').onclick=()=>{if(!confirm('Удалить все шаги, статусы и ответы тренажёра на этом устройстве?'))return;records={};answers.clear();cancelImport();persist=false;$('persist').checked=false;try{localStorage.removeItem(STORAGE_KEY);lastSaved=null;$('storage-status').textContent='Прогресс тренажёра удалён.';}catch{$('storage-status').textContent='Состояние вкладки очищено. Запись на диске удалить не удалось — очистите данные сайта в браузере.';}renderList();renderLesson();};
+
+function pauseSaving(){
+ persist=false;$('persist').checked=false;$('reload-saved').hidden=false;
+ $('storage-status').textContent='Прогресс изменён в другой вкладке. Автосохранение приостановлено; текущая практика осталась в памяти. Загрузите сохранённые данные или экспортируйте эту вкладку.';
+}
+window.addEventListener('storage',event=>{
+ if(!catalogue || (event.key!==STORAGE_KEY && event.key!==null))return;
+ if(event.newValue===null){
+  records={};answers.clear();cancelImport();persist=false;lastSaved=null;$('persist').checked=false;$('reload-saved').hidden=true;
+  $('storage-status').textContent='Сохранение удалено в другой вкладке. Эта вкладка тоже очищена.';renderList();renderLesson();
+ }else pauseSaving();
+});
+$('reload-saved').onclick=()=>{
+ if(!confirm('Загрузить прогресс браузера вместо текущей вкладки? Ответы в этой вкладке будут очищены.'))return;
+ try{const incoming=loadProgress(localStorage,catalogue);const raw=localStorage.getItem(STORAGE_KEY);records=incoming;lastSaved=raw;persist=raw!==null;answers.clear();cancelImport();$('persist').checked=persist;$('reload-saved').hidden=true;renderList();renderLesson();$('storage-status').textContent='Сохранённый прогресс загружен.';}
+ catch{$('storage-status').textContent='Не удалось прочитать сохранение. Текущий прогресс сохранён в памяти.';}
+};
+function cancelImport(){importGeneration++;pendingImport=null;$('import-preview').hidden=true;$('import-file').value='';$('replace-conflicts').checked=false;}
+$('export').onclick=()=>{
+ const blob=new Blob([exportBackup(records,catalogue)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=node('a');a.href=url;a.download='yugatn-skills-progress.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);$('backup-status').textContent='Файл подготовлен без личных ответов и редакционных статусов.';
+};
+$('import-file').onchange=async()=>{
+ const file=$('import-file').files[0];cancelImport();const generation=importGeneration;if(!file)return;
+ try{if(file.size>MAX_BACKUP_BYTES)throw Error('Файл больше 512 КБ.');const text=await file.text();if(generation!==importGeneration)return;
+  pendingImport=inspectBackup(text,catalogue);const conflicts=Object.keys(pendingImport.records).filter(k=>Object.hasOwn(records,k)).length;
+  $('import-summary').textContent=`Совместимых записей: ${pendingImport.accepted}. Пропущено (другая версия/возраст или неверная запись): ${pendingImport.skipped}. Совпадений с текущими: ${conflicts}. По умолчанию текущие записи сохраняются.`;
+  $('apply-import').disabled=pendingImport.accepted===0;$('import-preview').hidden=false;$('backup-status').textContent='Проверьте состав копии. До нажатия «Применить импорт» ничего не изменяется.';
+ }catch(error){if(generation===importGeneration)$('backup-status').textContent=error.message;}
+};
+$('cancel-import').onclick=()=>{cancelImport();$('backup-status').textContent='Импорт отменён. Прогресс не изменён.';};
+$('apply-import').onclick=()=>{
+ if(!pendingImport)return;const replace=$('replace-conflicts').checked;
+ if(replace&&!confirm('Заменить совпадающие записи? Более свежий прогресс может быть утрачен.'))return;
+ records=mergeBackup(records,pendingImport.records,replace);answers.clear();cancelImport();save();renderList();renderLesson();$('backup-status').textContent=persist?'Прогресс импортирован и сохранён в браузере.':'Прогресс импортирован в память вкладки. Для сохранения включите запись или скачайте копию.';
+};
+
 async function init(){try{const response=await fetch('./data/skills.json');if(!response.ok)throw Error('Catalogue unavailable');catalogue=validateCatalogue(await response.json());
  for(const a of catalogue.ages){const o=node('option',a.label);o.value=a.id;$('age').append(o);}$('age').value='12-17';
  for(const [id,title] of new Map(catalogue.skills.map(s=>[s.block,s.blockTitle]))){const o=node('option',`${id} · ${title}`);o.value=id;$('block').append(o);}
- try{records=loadProgress(localStorage,catalogue);persist=localStorage.getItem(STORAGE_KEY)!==null;$('persist').checked=persist;}catch{$('storage-status').textContent='Сохранённый прогресс недоступен или повреждён. Работаем в памяти вкладки; можно удалить старую запись кнопкой ниже.';}
+ try{records=loadProgress(localStorage,catalogue);lastSaved=localStorage.getItem(STORAGE_KEY);persist=lastSaved!==null;$('persist').checked=persist;}catch{$('storage-status').textContent='Сохранённый прогресс недоступен или повреждён. Работаем в памяти вкладки; можно удалить старую запись кнопкой ниже.';}
  for(const id of ['block','availability'])$(id).onchange=refresh;$('search').oninput=refresh;$('age').onchange=()=>{renderList();renderLesson();};$('loading').hidden=true;$('workspace').hidden=false;refresh();
  }catch{$('loading').hidden=true;$('error').hidden=false;$('error').textContent='Не удалось загрузить каталог. Запустите сайт через HTTP по инструкции README и обновите страницу.';}}
 init();

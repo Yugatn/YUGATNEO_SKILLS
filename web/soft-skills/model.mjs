@@ -10,7 +10,7 @@ export function normalizeProgress(input,skill) {
  result.step=Number.isInteger(input.step)?Math.max(0,Math.min(input.step,skill.steps.length)):0;
  result.criterionObserved=input.criterionObserved===true;
  result.status=Object.hasOwn(PROGRESS,input.status)?input.status:'not_started';
- if(result.status==='not_started') return result;
+ if(result.status==='not_started') return emptyProgress();
  if(result.status==='consolidated' && (result.completed.length!==skill.steps.length || !result.criterionObserved)) result.status='in_progress';
  return result;
 }

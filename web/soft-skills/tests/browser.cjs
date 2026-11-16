@@ -42,6 +42,33 @@ const fs=require('node:fs');
  await page.reload();await ready();
  assert.ok((await page.locator('.badges').innerText()).includes('Прогресс: закреплено'));
  assert.equal(await page.locator('textarea').first().inputValue(),'');
+
+ // Backup: preview/cancel, protected conflicts, explicit replacement, no private answers.
+ const downloadPromise=page.waitForEvent('download');await page.locator('#export').click();
+ const download=await downloadPromise;const backup=fs.readFileSync(await download.path(),'utf8');
+ assert.ok(!backup.includes('PRIVATE_TEST_ANSWER'));assert.ok(!backup.includes('under_review'));
+ const payload=JSON.parse(backup);const importedKey=Object.keys(payload.records)[0];
+ payload.records[importedKey]={status:'not_started',step:0,completed:[],criterionObserved:false};
+ const upload=()=>page.locator('#import-file').setInputFiles({name:'backup.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(payload))});
+ await upload();await page.waitForSelector('#import-preview:not([hidden])');
+ assert.ok((await page.locator('.badges').innerText()).includes('закреплено'));
+ await page.locator('#cancel-import').click();assert.ok((await page.locator('.badges').innerText()).includes('закреплено'));
+ await upload();await page.waitForSelector('#import-preview:not([hidden])');await page.locator('#apply-import').click();assert.ok((await page.locator('.badges').innerText()).includes('закреплено'));
+ await upload();await page.waitForSelector('#import-preview:not([hidden])');await page.locator('#replace-conflicts').check();
+ page.once('dialog',d=>d.accept());await page.locator('#apply-import').click();assert.ok(await page.getByRole('button',{name:'Начать упражнение',exact:true}).isVisible());
+ await page.locator('#import-file').setInputFiles({name:'broken.json',mimeType:'application/json',buffer:Buffer.from('{broken')});
+ await page.waitForFunction(()=>document.getElementById('backup-status').textContent.includes('корректным JSON'));
+ // Two tabs: pause instead of overwriting; a deletion clears stale progress and answers.
+ const sibling=await context.newPage();await sibling.goto(base);await sibling.waitForSelector('#workspace:not([hidden])');
+ await page.getByRole('button',{name:'Начать упражнение',exact:true}).click();
+ await sibling.waitForFunction(()=>document.getElementById('storage-status').textContent.includes('другой вкладке'));
+ assert.equal(await sibling.locator('#persist').isChecked(),false);
+ await sibling.getByRole('button',{name:'Начать упражнение',exact:true}).click();
+ await sibling.getByRole('button',{name:'Выполнено →',exact:true}).click();
+ assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('yugatn.soft-skills.progress.v1')).records[Object.keys(JSON.parse(localStorage.getItem('yugatn.soft-skills.progress.v1')).records)[0]].step),0);
+ page.once('dialog',d=>d.accept());await page.locator('#clear').click();
+ await sibling.waitForFunction(()=>document.getElementById('storage-status').textContent.includes('тоже очищена'));
+ assert.ok(await sibling.getByRole('button',{name:'Начать упражнение',exact:true}).isVisible());assert.equal(await sibling.locator('#persist').isChecked(),false);await sibling.close();
  const other=await browser.newContext();const otherPage=await other.newPage();await otherPage.goto(base);await otherPage.waitForSelector('#workspace:not([hidden])');assert.ok(await otherPage.getByRole('button',{name:'Начать упражнение',exact:true}).isVisible());await other.close();
  await page.evaluate(()=>localStorage.setItem('unrelated-app','keep'));
  page.on('dialog',d=>d.accept());
